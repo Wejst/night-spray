@@ -65,12 +65,14 @@ kbd { font-family: var(--body); font-weight: 700; background: #2a2730; border: 1
     <div class="btns">
       <button class="big" id="btnVR" disabled>Enter VR</button>
       <button class="big alt" id="btnPC">Play on PC</button>
+      <button class="big alt" id="btnHand">Left-handed: OFF</button>
     </div>
     <p id="vrnote">Checking for a VR headset…</p>
     <div class="cols">
       <div class="card">
         <h2>Quest controls</h2>
         <ul>
+          <li>Left-handed? Turn on Left-handed above, or press Swap hands on the palette. Everything below flips sides.</li>
           <li>Left stick: walk. Hold left grip: run</li>
           <li>Right stick: turn</li>
           <li>Right trigger: spray, mop or press a button</li>
@@ -519,8 +521,21 @@ ctrls.forEach(c => {
   c.ray.addEventListener('disconnected', () => { c.hand = null; c.gp = null; });
 });
 const deskHand = new THREE.Group(); deskHand.position.set(0.22, -0.22, -0.45); camera.add(deskHand);
-function rightC() { return ctrls.find(c => c.hand === 'right'); }
-function leftC() { return ctrls.find(c => c.hand === 'left'); }
+// rightC = the hand holding the can, leftC = the hand with the palette (swapped when left-handed)
+function rightC() { return ctrls.find(c => c.hand === (S.leftHanded ? 'left' : 'right')); }
+function leftC() { return ctrls.find(c => c.hand === (S.leftHanded ? 'right' : 'left')); }
+function swapHands() {
+  S.leftHanded = !S.leftHanded;
+  if (hovered) { hovered.userData.btn.redraw(false); hovered = null; }
+  laser.visible = false;
+  attachHands(); updateHandLabel();
+  toast(S.leftHanded ? 'Left-handed: can in your left hand' : 'Right-handed: can in your right hand');
+  sfx('click'); save();
+}
+function updateHandLabel() {
+  const b = document.getElementById('btnHand');
+  if (b) b.textContent = S.leftHanded ? 'Left-handed: ON' : 'Left-handed: OFF';
+}
 function attachHands() {
   const r = rightC(), l = leftC();
   if (r && inVR()) r.ray.add(tool);
@@ -563,6 +578,8 @@ function buildHandUI() {
   };
   handUI.userData.sizeBtn = mkSmall(-0.043, () => 'Size: ' + SIZES[S.size][1], () => { cycleSize(); });
   handUI.userData.toolBtn = mkSmall(0.043, () => S.tool === 'spray' ? 'Can ⇄ Mop' : 'Mop ⇄ Can', () => { toggleTool(); });
+  const swapBtn = mkSmall(0, () => 'Swap hands', () => { swapHands(); });
+  swapBtn.position.y = 0.105;
 }
 function refreshPalette() {
   swatches.forEach(b => b.userData.btn.redraw(false));
@@ -1038,7 +1055,7 @@ function readVR(dt) {
     const ax = gp.axes.length >= 4 ? [gp.axes[2], gp.axes[3]] : [gp.axes[0] || 0, gp.axes[1] || 0];
     const btn = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
     const edge = i => btn(i) && !c.prev[i];
-    if (c.hand === 'left') {
+    if (c.hand === (S.leftHanded ? 'right' : 'left')) {
       mx = Math.abs(ax[0]) > 0.15 ? ax[0] : 0; mz = Math.abs(ax[1]) > 0.15 ? ax[1] : 0;
       run = btn(1);
       if (edge(5) || edge(4)) { S.paletteOpen = !S.paletteOpen; handUI.userData.pal.visible = S.paletteOpen; sfx('click'); }
@@ -1126,6 +1143,8 @@ btnVR.onclick = async () => {
   } catch (e) { vrnote.textContent = 'This page is not allowed to start VR (' + (e.message || e) + '). Open the hosted copy of the game (index.html on GitHub Pages) in the Meta Quest Browser instead.'; }
 };
 btnPC.onclick = () => beginPlay(false);
+document.getElementById('btnHand').onclick = () => { S.leftHanded = !S.leftHanded; updateHandLabel(); save(); };
+updateHandLabel();
 document.addEventListener('keydown', e => { if (e.code === 'Escape' && !pointerLocked && playing && !inVR()) { save(); } });
 
 async function init() {
